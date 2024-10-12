@@ -4,8 +4,17 @@ import json
 from collections import defaultdict
 from typing import List, Callable, Union
 
+from typing import List, Callable, Union, Dict, Any, Optional
+import os
+from dotenv import load_dotenv
+import logging
+
+load_dotenv()
+
 # Package/library imports
-from openai import OpenAI
+from openai import AzureOpenAI
+import google.generativeai as genai
+
 
 
 # Local imports
@@ -24,10 +33,13 @@ __CTX_VARS_NAME__ = "context_variables"
 
 
 class Swarm:
-    def __init__(self, client=None):
-        if not client:
-            client = OpenAI()
-        self.client = client
+    def __init__(self):
+        self.client = AzureOpenAI(
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version="2024-05-01-preview"
+        )
+        self.deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 
     def get_chat_completion(
         self,
@@ -65,6 +77,8 @@ class Swarm:
 
         if tools:
             create_params["parallel_tool_calls"] = agent.parallel_tool_calls
+
+        logging.info(f"Creating chat completion with params: {create_params}")
 
         return self.client.chat.completions.create(**create_params)
 
@@ -111,7 +125,25 @@ class Swarm:
                     }
                 )
                 continue
-            args = json.loads(tool_call.function.arguments)
+            
+            try:
+                args = json.loads(tool_call.function.arguments)
+            except json.JSONDecodeError as e:
+                error_message = f"Error decoding JSON for function {name}: {str(e)}"
+                logging.error(tool_call)
+                logging.error(tool_call.function.arguments)
+                logging.error(error_message)
+                debug_print(debug, error_message)
+                partial_response.messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "tool_name": name,
+                        "content": f"Error: Invalid function arguments. {error_message}",
+                    }
+                )
+                continue
+
             debug_print(
                 debug, f"Processing tool call: {name} with arguments {args}")
 
@@ -119,7 +151,22 @@ class Swarm:
             # pass context_variables to agent functions
             if __CTX_VARS_NAME__ in func.__code__.co_varnames:
                 args[__CTX_VARS_NAME__] = context_variables
-            raw_result = function_map[name](**args)
+            
+            try:
+                raw_result = function_map[name](**args)
+            except Exception as e:
+                error_message = f"Error executing function {name}: {str(e)}"
+                logging.error(error_message)
+                debug_print(debug, error_message)
+                partial_response.messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "tool_name": name,
+                        "content": f"Error: Function execution failed. {error_message}",
+                    }
+                )
+                continue
 
             result: Result = self.handle_function_result(raw_result, debug)
             partial_response.messages.append(
@@ -255,7 +302,8 @@ class Swarm:
         init_len = len(messages)
 
         while len(history) - init_len < max_turns and active_agent:
-
+            logging.info(f"Starting turn with agent: {active_agent.name}")
+            
             # get completion with current history, agent
             completion = self.get_chat_completion(
                 agent=active_agent,
@@ -265,6 +313,8 @@ class Swarm:
                 stream=stream,
                 debug=debug,
             )
+            logging.info(f"Received completion: {completion}")
+            
             message = completion.choices[0].message
             debug_print(debug, "Received completion:", message)
             message.sender = active_agent.name
@@ -285,6 +335,7 @@ class Swarm:
             if partial_response.agent:
                 active_agent = partial_response.agent
 
+        logging.info("Finished run method")
         return Response(
             messages=history[init_len:],
             agent=active_agent,
