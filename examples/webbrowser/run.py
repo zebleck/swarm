@@ -16,4 +16,5 @@ if __name__ == "__main__":
         run_demo_loop(web_browser_agent)
     finally:
         from agents import close_browser
+
         close_browser()

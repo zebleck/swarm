@@ -1,6 +1,7 @@
 from selenium.webdriver.common.by import By
 import time
 
+
 def login(driver):
     # Navigate to the login URL
     driver.get("http://localhost:4280/.auth/login/aadb")

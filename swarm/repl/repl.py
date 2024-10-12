@@ -81,6 +81,7 @@ def run_demo_loop(
         if stream:
             response = process_and_print_streaming_response(response)
         else:
+            print("message:", response)
             pretty_print_messages(response.messages)
 
         messages.extend(response.messages)

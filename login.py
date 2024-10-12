@@ -4,7 +4,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 # Set up the Selenium driver (ensure you have the appropriate WebDriver installed, e.g., ChromeDriver)
-driver = webdriver.Chrome()  # You can replace Chrome with any other browser driver you use
+driver = (
+    webdriver.Chrome()
+)  # You can replace Chrome with any other browser driver you use
+
 
 def login():
     # Navigate to the login URL
@@ -35,6 +38,7 @@ def login():
 
     # Close the browser
     driver.quit()
+
 
 if __name__ == "__main__":
     login()
