@@ -1,7 +1,8 @@
 import streamlit as st
 from swarm import Swarm
 import json
-from min_agents import alice_agent
+from agents import coordinator_agent
+import os
 
 
 def pretty_print_messages(messages):
@@ -26,6 +27,7 @@ def pretty_print_messages(messages):
 
 
 def main():
+    os.chdir("/home/zebleck/github/Cosmos/Cosmos-FrontEnd")
     st.title("Swarm Chat Interface")
 
     client = Swarm()
@@ -34,7 +36,7 @@ def main():
         st.session_state.messages = []
 
     if "agent" not in st.session_state:
-        st.session_state.agent = alice_agent
+        st.session_state.agent = coordinator_agent
 
     # Display current messages
     st.markdown(pretty_print_messages(st.session_state.messages))
